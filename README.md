@@ -39,7 +39,7 @@ To transition from "Zero" to a **Technical AI Product Manager** capable of bridg
 
 ---
 
-## My Personal Experience
+## My Personal Experience 01/08/2026
 
 I had zero experience with command-line tools, which significantly slowed my progress. When Gemini provided various commands and code snippets, I learned to stay alert: the version it referenced might be outdated, and some packages might already be installed (or incorrectly installed) without my knowledge. As a beginner, understanding this upfront would have saved me considerable time.
 
