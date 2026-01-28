@@ -6,4 +6,4 @@ resume.txt
 writing.txt
 job_description.txt
 chroma_db/
-.pdf
+*.pdf
