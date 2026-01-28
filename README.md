@@ -19,7 +19,7 @@ To transition from "Zero" to a **Technical AI Product Manager** capable of bridg
 | **Week 1** | **The Environment & API Basics** | ✅ `hello_ai.py` (First API Call)<br>✅ `career_coach.py` (System Instructions)<br>✅ GitHub Portfolio Setup | **Completed** |
 | **Week 2** | **Prompt Engineering & Logic** | *Resume Analyzer Tool* | **Completed** |
 | **Week 3** | **RAG & Embeddings** | *RAG** | **Completed** |
-| **Week 4** | **AI Economics & Strategy** | ⏳ *UI* | *In-progress* |
+| **Week 4** | **AI Economics & Strategy** | ⏳ *UI* | **Completed** |
 | **Week 5** | **Capstone Project** | 🏆 **The Document Chatbot** (End-to-End App) | *Planned* |
 
 ---
@@ -97,3 +97,42 @@ My key takeaways: First, be as specific as possible when writing prompts. Second
 #### **4. The "PM" Takeaway**
 * **Scalability:** We proved that "Context Stuffing" fails at scale. Vector Search is the only viable path for enterprise-grade data retrieval.
 * **White-Box AI:** Building the search logic manually gave us visibility into *why* the AI selects certain answers, transforming "Magic" into "Engineering."
+
+---
+## 🚀 Week 4: The Interface & AI Economics
+
+### **1. The Technical Build: The User Interface**
+**Goal:** Transform the terminal-based script into a deployable Web Application.
+**Status:** ✅ Deployed (Streamlit Cloud)
+
+* **Frontend:** Built a "No-Code" UI using **Streamlit**, enabling non-technical stakeholders to upload documents and chat.
+* **Session Management:** Implemented state persistence (`st.session_state`) to maintain chat history and database connections across user interactions.
+* **Security:** Moved from hard-coded API keys to a "Bring Your Own Key" (BYOK) architecture in the UI, shifting security liability to the user session.
+* **Deployment:** Configured `requirements.txt` and `.gitignore` for a production-ready push to GitHub and Streamlit Cloud.
+
+---
+
+### **2. AI Strategy & Economics (The "Why")**
+*An analysis of why we chose RAG architecture over other AI approaches.*
+
+#### **A. Unit Economics: The Cost of Intelligence**
+We compared two methods for answering questions from a 50-page PDF.
+* **Method A (Context Stuffing):** Paste the entire PDF into the prompt every time.
+    * *Cost:* ~50,000 tokens per query.
+    * *Price:* ~$0.10 per question.
+    * *Scalability:* **Linear Cost** (Doubling documents doubles cost).
+* **Method B (RAG - Our Solution):** Search for the top 3 paragraphs and send only those.
+    * *Cost:* ~1,000 tokens per query.
+    * *Price:* ~$0.002 per question.
+    * *Result:* **98% Cost Reduction** and **Flat Cost Curve** (Cost stays low even if we add 100 more PDFs).
+
+#### **B. Latency vs. Accuracy Strategy**
+* **The Trade-off:** "Context Stuffing" has higher recall (it reads everything) but high latency (10+ seconds). "RAG" has low latency (1-2 seconds) but risks missing info if the search (`k=3`) is bad.
+* **Decision:** We optimized for **User Experience (Speed)**. By using semantic search (Vectors), we maintain high accuracy without the latency penalty of processing raw text.
+
+#### **C. The "Moat" Analysis**
+* **The "Thin Wrapper" Risk:** Our app is a "wrapper" around Google Gemini. If Google builds this feature natively, our code becomes obsolete.
+* **The True Value:** The code is not the moat. The **Data** (the user's private PDFs) is the moat.
+* **Strategic Pivot:** The product strategy is not "Better AI Model," but "Better Data Integration." We are building the pipe, not the water.
+
+---
