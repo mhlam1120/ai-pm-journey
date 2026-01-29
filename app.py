@@ -49,7 +49,7 @@ st.markdown("""
 
 def get_gemini_response(api_key, prompt, temp=0.3):
     os.environ["GOOGLE_API_KEY"] = api_key
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
     response = llm.invoke(prompt)
     return response.content
 
