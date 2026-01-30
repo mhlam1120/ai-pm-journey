@@ -1,9 +1,13 @@
 import streamlit as st
 import os
+import json
+import time
+from datetime import datetime
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from google.api_core.exceptions import ResourceExhausted
 
 # --- 1. CONFIGURATION & STYLE ---
 st.set_page_config(page_title="Omni-Agent Platform",
@@ -41,17 +45,125 @@ st.markdown("""
         /* 5. Hide Streamlit branding */
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
+        
+        /* --- 6. STAR RATING: SURGICAL BUTTON SCALING --- */
+        
+        /* Target the container just for spacing */
+        div[data-testid="stFeedback"] {
+            padding: 20px 0 !important;
+        }
+
+        /* Target the list inside to spread items out */
+        div[data-testid="stFeedback"] > ul {
+            justify-content: space-evenly !important; 
+            width: 100% !important;
+            gap: 20px !important;
+        }
+        
+        /* TARGET THE STARS DIRECTLY (Buttons) */
+        div[data-testid="stFeedback"] button {
+            transform: scale(3.0) !important; /* 3.0x Size */
+            margin: 0 15px !important;       /* Add margin so they don't touch */
+        }
+        
+        /* Fix SVG alignment inside the scaled button */
+        div[data-testid="stFeedback"] button > div {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
     </style>
 """, unsafe_allow_html=True)
 
 # --- 2. HELPER FUNCTIONS ---
 
+# FEEDBACK DATABASE FUNCTIONS
+FEEDBACK_FILE = "feedback.json"
+
+
+def load_feedback():
+    if not os.path.exists(FEEDBACK_FILE):
+        return []
+    try:
+        with open(FEEDBACK_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return []
+
+
+def save_feedback(rating, improvement, feature):
+    data = load_feedback()
+    # rating comes from st.feedback as 0-4 index, so we add 1
+    actual_rating = rating + 1 if isinstance(rating, int) else 5
+
+    new_entry = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "rating": actual_rating,
+        "improvement_feedback": improvement,
+        "feature_request": feature
+    }
+    data.append(new_entry)
+    with open(FEEDBACK_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+    return data
+
+
+def get_average_rating():
+    data = load_feedback()
+    if not data:
+        return "New"
+    valid_ratings = [d.get('rating') for d in data if isinstance(
+        d.get('rating'), (int, float))]
+    if not valid_ratings:
+        return "New"
+    avg = sum(valid_ratings) / len(valid_ratings)
+    # Using HTML span to size the star in the Sidebar
+    return f"{avg:.1f}/5 <span style='font-size:18px'>⭐</span>"
+
+# AI FUNCTIONS
+
 
 def get_gemini_response(api_key, prompt, temp=0.3):
+    # Initialize usage counter if not exists
+    if "api_usage_count" not in st.session_state:
+        st.session_state.api_usage_count = 0
+
     os.environ["GOOGLE_API_KEY"] = api_key
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
-    response = llm.invoke(prompt)
-    return response.content
+
+    # --- SMART EXPONENTIAL BACKOFF WITH VISUAL COUNTDOWN ---
+    max_retries = 3
+    base_delay = 5  # Start with 5 seconds
+
+    for attempt in range(max_retries):
+        try:
+            # Increment Counter
+            st.session_state.api_usage_count += 1
+
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-2.5-flash", temperature=0.3)
+            response = llm.invoke(prompt)
+            return response.content
+
+        except ResourceExhausted:
+            # If we hit the limit...
+            if attempt < max_retries - 1:
+                wait_time = base_delay * (2 ** attempt)
+
+                # --- VISUAL COUNTDOWN LOGIC ---
+                placeholder = st.empty()  # Create a placeholder to update
+                for i in range(wait_time, 0, -1):
+                    placeholder.warning(
+                        f"⚠️ High Traffic. Retrying in {i} seconds... (Attempt {attempt+1}/{max_retries})")
+                    time.sleep(1)
+                placeholder.empty()  # Clear the message
+                # ------------------------------
+
+                continue
+            else:
+                return "⚠️ **DEMO LIMIT REACHED** ⚠️\n\nThe AI is currently overloaded. Please wait 60 seconds and try again."
+        except Exception as e:
+            return f"⚠️ **SYSTEM ERROR:** {str(e)}"
 
 
 def extract_text_from_pdf(uploaded_file):
@@ -69,11 +181,23 @@ if "job_desc_text" not in st.session_state:
     st.session_state.job_desc_text = None
 if "ops_db" not in st.session_state:
     st.session_state.ops_db = None
+if "feedback_submitted" not in st.session_state:
+    st.session_state.feedback_submitted = False
+if "api_usage_count" not in st.session_state:
+    st.session_state.api_usage_count = 0
+
+# Store generated docs in session state so edits persist
+if "gen_resume" not in st.session_state:
+    st.session_state.gen_resume = ""
+if "gen_cover_letter" not in st.session_state:
+    st.session_state.gen_cover_letter = ""
 
 # --- 4. SIDEBAR (CLEAN DESIGN) ---
 with st.sidebar:
     st.markdown("### Omni-Agent Platform")
-    st.caption("Enterprise Edition v1.5")
+    # Added unsafe_allow_html to render the bigger star
+    st.caption(
+        f"Enterprise Edition v4.2 | {get_average_rating()}", unsafe_allow_html=True)
 
     with st.expander("Credentials & Settings", expanded=False):
         if "GOOGLE_API_KEY" in st.secrets:
@@ -82,19 +206,44 @@ with st.sidebar:
         else:
             api_key = st.text_input("API Key", type="password")
 
+    # --- NEW: USAGE TRACKER ---
+    if api_key:
+        st.markdown("---")
+        st.caption("⚡ SYSTEM LOAD (DEMO)")
+
+        # Free Tier Limit is roughly 15 RPM.
+        usage = st.session_state.api_usage_count
+        limit = 15
+
+        # Calculate percentage for progress bar (cap at 100%)
+        pct = min(usage / limit, 1.0)
+
+        st.progress(pct, text=f"{usage} / {limit} Load Units")
+
+        if usage >= limit:
+            st.warning("⚠️ High Traffic - System may slow down")
+
+        if st.button("Reset Counter", help="Click this to reset usage count for a new demo"):
+            st.session_state.api_usage_count = 0
+            st.rerun()
+    # --------------------------
+
     st.markdown("---")
     st.caption("MODULE SELECTION")
+
+    # UPDATED NAMES: "Doc. Generator"
     mode = st.radio(
         "Navigation",
-        ["Gap Analysis", "App Generator", "Ops Intelligence", "Research Synth"],
+        ["Gap Analysis", "Doc. Generator",
+            "SOP Search", "Pattern Finder", "Feedback"],
         label_visibility="collapsed"
     )
 
     st.markdown("---")
 
+    # --- FIXED: CONTEXT REPOSITORY IS NOW GLOBAL (PERSISTENT) ---
     st.caption("CONTEXT REPOSITORY")
     with st.container(border=True):
-        # RESUME UPLOAD
         uploaded_resume = st.file_uploader(
             "Candidate Resume (PDF)", type="pdf")
         if uploaded_resume:
@@ -102,16 +251,18 @@ with st.sidebar:
                 uploaded_resume)
             st.caption(f"✅ Loaded: {uploaded_resume.name}")
 
-        # JD INPUT WITH ACTION BUTTON
-        jd_input = st.text_area("Target Job Description",
-                                height=100, placeholder="Paste JD text here...")
+        # Linked to Session State for Persistence
+        jd_input = st.text_area(
+            "Target Job Description",
+            height=100,
+            placeholder="Paste JD text here...",
+            value=st.session_state.job_desc_text if st.session_state.job_desc_text else ""
+        )
 
-        # The User Requested Button
         if st.button("Save Job Description (⌘+Enter)", use_container_width=True):
             if jd_input:
                 st.session_state.job_desc_text = jd_input
 
-        # Visual Confirmation Logic
         if jd_input and not st.session_state.job_desc_text:
             st.session_state.job_desc_text = jd_input
 
@@ -124,7 +275,7 @@ if not api_key:
 
 # --- 5. MAIN CONTENT AREA ---
 
-# MODULE 1: GAP ANALYSIS
+# MODULE 1: GAP ANALYSIS (RESTORED PROMPT)
 if mode == "Gap Analysis":
     st.subheader("Strategic Gap Analysis")
     st.caption("Evaluate candidate fit and authenticity against target role.")
@@ -174,57 +325,73 @@ if mode == "Gap Analysis":
         else:
             st.error("Action Required: Upload Resume and JD in the Sidebar.")
 
-# MODULE 2: APP GENERATOR
-elif mode == "App Generator":
-    st.subheader("Application Material Generator")
-    st.caption(
-        "Generate ATS-optimized documentation tailored to the specific opportunity.")
+# MODULE 2: DOC GENERATOR
+elif mode == "Doc. Generator":
+    st.subheader("Automated Documentation")
+    st.caption("Generate ATS-optimized resumes and cover letters.")
 
-    if st.button("Generate Application Package", type="primary", use_container_width=True):
+    # 1. GENERATE BUTTON
+    if st.button("Generate Documents", type="primary", use_container_width=True):
         if st.session_state.resume_text and st.session_state.job_desc_text:
-            tab1, tab2 = st.tabs(["Optimized Resume", "Cover Letter"])
             with st.status("Drafting Documents...", expanded=True) as status:
 
-                # RESUME
-                st.write("Optimizing for ATS keywords...")
-                resume_prompt = f"""
-                Role: Expert Resume Writer. Task: Rewrite resume to align with JD.
-                Constraints: 
-                - Professional tone, NO AI BUZZWORDS (no "delved", "tapestry", "foster").
-                - Use strong, simple verbs (Led, Built, Sold).
-                - Use JD keywords naturally.
-                RESUME: {st.session_state.resume_text} JD: {st.session_state.job_desc_text}
-                """
-                new_resume = get_gemini_response(
+                # Resume Gen
+                resume_prompt = f"Role: Expert Resume Writer. Rewrite resume for JD. RESUME: {st.session_state.resume_text} JD: {st.session_state.job_desc_text}"
+                st.session_state.gen_resume = get_gemini_response(
                     api_key, resume_prompt, temp=0.5)
 
-                # COVER LETTER
-                st.write("Drafting executive letter...")
-                cl_prompt = f"""
-                Role: Executive Coach. Task: Write a cover letter connecting user achievements to company pain points.
-                Constraints: Direct, professional, no fluff.
-                RESUME: {st.session_state.resume_text} JD: {st.session_state.job_desc_text}
-                """
-                cover_letter = get_gemini_response(
+                # Cover Letter Gen
+                cl_prompt = f"Role: Executive Coach. Write cover letter. RESUME: {st.session_state.resume_text} JD: {st.session_state.job_desc_text}"
+                st.session_state.gen_cover_letter = get_gemini_response(
                     api_key, cl_prompt, temp=0.5)
+
                 status.update(label="Generation Complete",
                               state="complete", expanded=False)
-
-            with tab1:
-                st.markdown(new_resume)
-                st.download_button("Download Resume (.md)",
-                                   new_resume, use_container_width=True)
-            with tab2:
-                st.markdown(cover_letter)
-                st.download_button("Download Letter (.md)",
-                                   cover_letter, use_container_width=True)
         else:
             st.error("Action Required: Upload Resume and JD in the Sidebar.")
 
-# MODULE 3: OPS INTELLIGENCE
-elif mode == "Ops Intelligence":
-    st.subheader("Operations Intelligence")
-    st.caption("RAG-enabled search across Standard Operating Procedures (SOPs).")
+    # 2. PREVIEW & EDIT AREA (Only shows if content exists)
+    if st.session_state.gen_resume:
+        st.divider()
+        st.markdown("### 📝 Review & Edit")
+
+        tab1, tab2 = st.tabs(["Optimized Resume", "Cover Letter"])
+
+        # --- TAB 1: RESUME EDITOR ---
+        with tab1:
+            col_edit, col_view = st.columns(2)
+            with col_edit:
+                st.markdown("**Editor (Markdown)**")
+                # Text Area allows editing the AI output
+                resume_edit = st.text_area(
+                    "Resume Editor", value=st.session_state.gen_resume, height=600, label_visibility="collapsed")
+            with col_view:
+                st.markdown("**Live Preview**")
+                with st.container(border=True, height=600):
+                    st.markdown(resume_edit)  # Renders the Edited Text
+
+            st.download_button("Download Final Resume (.md)", resume_edit,
+                               file_name="Optimized_Resume.md", use_container_width=True)
+
+        # --- TAB 2: COVER LETTER EDITOR ---
+        with tab2:
+            col_edit, col_view = st.columns(2)
+            with col_edit:
+                st.markdown("**Editor (Markdown)**")
+                cl_edit = st.text_area(
+                    "CL Editor", value=st.session_state.gen_cover_letter, height=600, label_visibility="collapsed")
+            with col_view:
+                st.markdown("**Live Preview**")
+                with st.container(border=True, height=600):
+                    st.markdown(cl_edit)
+
+            st.download_button("Download Final Letter (.md)", cl_edit,
+                               file_name="Cover_Letter.md", use_container_width=True)
+
+# MODULE 3: SOP SEARCH
+elif mode == "SOP Search":
+    st.subheader("SOP Knowledge Base")
+    st.caption("Ask specific questions across your Standard Operating Procedures.")
 
     with st.container(border=True):
         col1, col2 = st.columns([3, 1])
@@ -265,14 +432,11 @@ elif mode == "Ops Intelligence":
             ans = get_gemini_response(
                 api_key, f"Context: {context} \n Question: {query}")
             st.markdown(f"### Answer \n {ans}")
-            with st.expander("View Source Context"):
-                for doc in results:
-                    st.caption(doc.page_content[:300] + "...")
 
-# MODULE 4: RESEARCH SYNTH
-elif mode == "Research Synth":
-    st.subheader("Research Synthesizer")
-    st.caption("Multi-document pattern recognition and insight extraction.")
+# MODULE 4: PATTERN FINDER
+elif mode == "Pattern Finder":
+    st.subheader("Pattern Recognition Engine")
+    st.caption("Identify themes and trends across multiple transcripts or logs.")
 
     with st.container(border=True):
         transcripts = st.file_uploader(
@@ -287,3 +451,103 @@ elif mode == "Research Synth":
                 res = get_gemini_response(
                     api_key, f"Analyze patterns and generate executive summary: {text}")
             st.markdown(res)
+
+# MODULE 5: FEEDBACK
+elif mode == "Feedback":
+    st.subheader("User Feedback Loop")
+    st.caption("Help us improve the Enterprise Edition.")
+
+    # 0. Check for Success Flag (Displayed after rerun)
+    if st.session_state.feedback_submitted:
+        st.success("✅ Feedback Recorded! Thank you.")
+        st.session_state.feedback_submitted = False  # Reset flag
+
+    # 1. Load data to decide layout
+    feedback_data = load_feedback()
+
+    # 2. Logic: Split 60/40 ONLY if feedback exists
+    if len(feedback_data) > 0:
+        col_form, col_display = st.columns([0.6, 0.4], gap="large")
+    else:
+        col_form = st.container()
+        col_display = None
+
+    # --- LEFT SIDE: THE FORM ---
+    with col_form:
+        with st.container(border=True):
+
+            # Initialize default rating to 4 (5 stars)
+            if "star_rating" not in st.session_state:
+                st.session_state.star_rating = 4
+            if "imp_input" not in st.session_state:
+                st.session_state.imp_input = ""
+            if "feat_input" not in st.session_state:
+                st.session_state.feat_input = ""
+
+            # A. Interactive Stars
+            st.markdown("**System Rating**")
+            rating_selection = st.feedback("stars", key="star_rating")
+
+            # B. Text Inputs (Linked to Session State)
+            st.markdown("**How can I make this app better?**")
+            improvement = st.text_area(
+                "Improvement", height=80, label_visibility="collapsed", key="imp_input")
+
+            st.markdown("**What feature should I add next?**")
+            feature = st.text_area(
+                "Feature", height=80, label_visibility="collapsed", key="feat_input")
+
+            # C. Validation Logic
+            is_form_filled = len(improvement.strip()) > 0 and len(
+                feature.strip()) > 0
+
+            # D. Callbacks (Runs BEFORE reset)
+            def submit_callback():
+                # Save
+                save_feedback(st.session_state.star_rating,
+                              st.session_state.imp_input, st.session_state.feat_input)
+                # Clear
+                st.session_state.imp_input = ""
+                st.session_state.feat_input = ""
+                st.session_state.star_rating = 4
+                # Set Flag
+                st.session_state.feedback_submitted = True
+
+            def cancel_callback():
+                st.session_state.imp_input = ""
+                st.session_state.feat_input = ""
+                st.session_state.star_rating = 4
+
+            # E. Buttons
+            b_col1, b_col2 = st.columns(2)
+
+            with b_col1:
+                st.button("Cancel", use_container_width=True,
+                          on_click=cancel_callback)
+
+            with b_col2:
+                st.button("Submit Feedback", type="primary", use_container_width=True,
+                          disabled=not is_form_filled, on_click=submit_callback)
+
+    # --- RIGHT SIDE: DISPLAY (SCROLLABLE) ---
+    if col_display and feedback_data:
+        with col_display:
+            st.markdown("### Recent Feedback")
+
+            # THE SCROLLABLE CONTAINER
+            with st.container(height=500, border=False):
+                for item in reversed(feedback_data):
+                    with st.container(border=True):
+                        # Header: Stars + Date
+                        h_col1, h_col2 = st.columns([2, 1])
+                        # Using HTML span to size the stars in the List
+                        with h_col1:
+                            st.markdown(
+                                f"<span style='font-size:20px'>{'⭐' * item['rating']}</span>", unsafe_allow_html=True)
+                        with h_col2:
+                            st.caption(item['timestamp'])
+
+                        st.divider()
+                        st.markdown(
+                            f"**Improve:** {item['improvement_feedback']}")
+                        st.markdown(f"**Feature:** {item['feature_request']}")
