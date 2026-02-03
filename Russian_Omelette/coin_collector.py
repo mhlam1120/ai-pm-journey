@@ -1,4 +1,19 @@
+import os
+import sys
+
+# --- STRATEGIC FIX FOR STREAMLIT CLOUD ---
+# ChromaDB requires a newer version of SQLite than what Streamlit Cloud provides.
+# This code swaps the system's default sqlite3 with the 'pysqlite3-binary' we installed.
+try:
+    __import__('pysqlite3')
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+except ImportError:
+    # This handles your local Mac environment where pysqlite3 might not be installed
+    # because Macs usually have a modern enough SQLite by default.
+    pass
+
 import streamlit as st
+# ... rest of your imports (chromadb, etc.) follow here ...
 import streamlit.components.v1 as components
 
 # --- Streamlit Page Config ---

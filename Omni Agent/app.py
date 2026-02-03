@@ -1,254 +1,299 @@
-import streamlit as st
 import os
-import json
-import pandas as pd
-from datetime import datetime
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import initialize_agent, AgentType, Tool
-from langchain_community.tools import DuckDuckGoSearchRun
+import sys
 
-# --- 1. CONFIGURATION & DATABASE ---
-st.set_page_config(page_title="Omni Agent - Enterprise", layout="wide")
+# SAFE FIX: Only runs if pysqlite3 is installed (Deployed Envs)
+try:
+    __import__('pysqlite3')
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+except ImportError:
+    pass  # Skips this on your local Mac so it doesn't crash
 
-# File path for our "Database"
-FEEDBACK_FILE = "feedback.json"
+import streamlit as st
+# ... rest of your imports ...
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.vectorstores import Chroma
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+# --- 1. CONFIGURATION & STYLE ---
+st.set_page_config(page_title="Omni-Agent Platform",
+                   layout="wide", initial_sidebar_state="expanded")
 
-def load_feedback():
-    """Loads feedback from the JSON file."""
-    if not os.path.exists(FEEDBACK_FILE):
-        return []
-    try:
-        with open(FEEDBACK_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return []
-
-
-def save_feedback(rating, text):
-    """Saves new feedback to the JSON file."""
-    data = load_feedback()
-    new_entry = {
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "rating": rating,
-        "comment": text
-    }
-    data.append(new_entry)
-    with open(FEEDBACK_FILE, "w") as f:
-        json.dump(data, f, indent=4)
-    return data
-
-
-def get_average_rating():
-    """Calculates the average star rating."""
-    data = load_feedback()
-    if not data:
-        return "New"
-
-    total = sum(d['rating'] for d in data)
-    avg = total / len(data)
-    return f"{avg:.1f}/5 ⭐"
-
-
-# --- 2. SETUP AI & TOOLS ---
-if "GOOGLE_API_KEY" in st.secrets:
-    api_key = st.secrets["GOOGLE_API_KEY"]
-else:
-    api_key = st.sidebar.text_input("Enter Google API Key", type="password")
-
-if not api_key:
-    st.warning("⚠️ Please enter your Google API Key to continue.")
-    st.stop()
-
-os.environ["GOOGLE_API_KEY"] = api_key
-
-# Define the AI Model (Using 1.5-Flash for high limits)
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-001", temperature=0.3)
-
-# Define Tools
-search = DuckDuckGoSearchRun()
-
-tools = [
-    Tool(
-        name="Web Search",
-        func=search.run,
-        description="Useful for finding current events, news, and real-time information."
-    )
-]
-
-# Initialize the Agent
-agent = initialize_agent(
-    tools,
-    llm,
-    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-    verbose=True,
-    handle_parsing_errors=True
-)
-
-# --- 3. UI & STYLING ---
-# Custom CSS for consistent button styling across all modes
+# CSS INJECTION: High-Density Enterprise Layout
 st.markdown("""
-<style>
-    div.stButton > button {
-        background-color: #4CAF50;
-        color: white;
-        font-size: 18px;
-        padding: 10px 24px;
-        border-radius: 8px;
-        border: none;
-        width: 100%;
-    }
-    div.stButton > button:hover {
-        background-color: #45a049;
-        color: white;
-    }
-    .metric-card {
-        background-color: #f0f2f6;
-        padding: 20px;
-        border-radius: 10px;
-        text-align: center;
-    }
-</style>
+    <style>
+        /* 1. Reduce Sidebar Padding */
+        section[data-testid="stSidebar"] .block-container {
+            padding-top: 1.5rem;
+            padding-bottom: 1rem;
+        }
+        
+        /* 2. Tighten Widget Spacing */
+        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+            gap: 0.6rem;
+        }
+
+        /* 3. Professional Typography */
+        h1, h2, h3 {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            margin-bottom: 0.5rem !important;
+            padding-bottom: 0rem !important;
+        }
+        
+        /* 4. Clean Expanders */
+        .stExpander {
+            border: 0px solid rgba(0,0,0,0); 
+            background-color: transparent;
+        }
+        
+        /* 5. Hide Streamlit branding */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+    </style>
 """, unsafe_allow_html=True)
 
-# Top Bar with Rating
-col_logo, col_title, col_rating = st.columns([1, 4, 2])
-with col_title:
-    st.title("🤖 Omni Agent")
+# --- 2. HELPER FUNCTIONS ---
+
+
+def get_gemini_response(api_key, prompt, temp=0.3):
+    os.environ["GOOGLE_API_KEY"] = api_key
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=temp)
+    response = llm.invoke(prompt)
+    return response.content
+
+
+def extract_text_from_pdf(uploaded_file):
+    with open("temp_pdf.pdf", "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    loader = PyPDFLoader("temp_pdf.pdf")
+    docs = loader.load()
+    return "\n".join([page.page_content for page in docs])
+
+
+# --- 3. SESSION STATE ---
+if "resume_text" not in st.session_state:
+    st.session_state.resume_text = None
+if "job_desc_text" not in st.session_state:
+    st.session_state.job_desc_text = None
+if "ops_db" not in st.session_state:
+    st.session_state.ops_db = None
+
+# --- 4. SIDEBAR (CLEAN DESIGN) ---
+with st.sidebar:
+    st.markdown("### Omni-Agent Platform")
     st.caption("Enterprise Edition v1.5")
-with col_rating:
-    st.markdown(
-        f"<h3 style='text-align: right; color: #FFD700;'>{get_average_rating()}</h3>", unsafe_allow_html=True)
-    st.caption("User Satisfaction Score")
 
-st.divider()
+    with st.expander("Credentials & Settings", expanded=False):
+        if "GOOGLE_API_KEY" in st.secrets:
+            st.success("System Authenticated")
+            api_key = st.secrets["GOOGLE_API_KEY"]
+        else:
+            api_key = st.text_input("API Key", type="password")
 
-# --- 4. NAVIGATION ---
-mode = st.sidebar.radio("Select Mode",
-                        ["1. Chat Agent", "2. Deep Research", "3. Document Analysis",
-                            "4. Code Generator", "5. Feedback & Rating"]
-                        )
+    st.markdown("---")
+    st.caption("MODULE SELECTION")
+    mode = st.radio(
+        "Navigation",
+        ["Gap Analysis", "App Generator", "Ops Intelligence", "Research Synth"],
+        label_visibility="collapsed"
+    )
 
-# --- MODE 1: CHAT AGENT ---
-if mode == "1. Chat Agent":
-    st.subheader("💬 Enterprise Chat")
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    st.markdown("---")
 
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+    st.caption("CONTEXT REPOSITORY")
+    with st.container(border=True):
+        # RESUME UPLOAD
+        uploaded_resume = st.file_uploader(
+            "Candidate Resume (PDF)", type="pdf")
+        if uploaded_resume:
+            st.session_state.resume_text = extract_text_from_pdf(
+                uploaded_resume)
+            st.caption(f"✅ Loaded: {uploaded_resume.name}")
 
-    if prompt := st.chat_input("How can I help you today?"):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+        # JD INPUT WITH ACTION BUTTON
+        jd_input = st.text_area("Target Job Description",
+                                height=100, placeholder="Paste JD text here...")
 
-        with st.chat_message("assistant"):
-            try:
-                response = agent.run(prompt)
-                st.markdown(response)
-                st.session_state.messages.append(
-                    {"role": "assistant", "content": response})
-            except Exception as e:
-                st.error(f"Agent Error: {e}")
+        # The User Requested Button
+        if st.button("Save Job Description (⌘+Enter)", use_container_width=True):
+            if jd_input:
+                st.session_state.job_desc_text = jd_input
 
-# --- MODE 2: DEEP RESEARCH ---
-elif mode == "2. Deep Research":
-    st.subheader("🌍 Deep Research Mode")
-    topic = st.text_input(
-        "Research Topic", placeholder="e.g., The future of solid-state batteries")
+        # Visual Confirmation Logic
+        if jd_input and not st.session_state.job_desc_text:
+            st.session_state.job_desc_text = jd_input
 
-    if st.button("Start Research"):
-        if topic:
-            with st.spinner(f"Researching '{topic}'..."):
-                try:
-                    # Multi-step research prompt
-                    prompt = f"""
-                    Conduct a deep research on: {topic}.
-                    1. Search for the latest developments.
-                    2. Summarize key trends.
-                    3. List major companies involved.
-                    4. Provide a market outlook for 2025.
-                    Format the output as a professional report with headings.
-                    """
-                    response = agent.run(prompt)
-                    st.markdown("### 📄 Research Report")
-                    st.markdown(response)
-                except Exception as e:
-                    st.error(f"Research Failed: {e}")
+        if st.session_state.job_desc_text:
+            st.caption("✅ JD Active & Saved")
 
-# --- MODE 3: DOC ANALYSIS ---
-elif mode == "3. Document Analysis":
-    st.subheader("📄 Document Intelligence")
-    uploaded_file = st.file_uploader(
-        "Upload a document (TXT or CSV)", type=["txt", "csv"])
+if not api_key:
+    st.warning("System Locked. Please provide API credentials in the sidebar.")
+    st.stop()
 
-    if uploaded_file:
-        stringio = io.StringIO(uploaded_file.getvalue().decode("utf-8"))
-        doc_content = stringio.read()
+# --- 5. MAIN CONTENT AREA ---
 
-        st.info("Document uploaded successfully. Ask questions below.")
-        doc_query = st.text_input("Ask about the document:")
+# MODULE 1: GAP ANALYSIS
+if mode == "Gap Analysis":
+    st.subheader("Strategic Gap Analysis")
+    st.caption("Evaluate candidate fit and authenticity against target role.")
 
-        if st.button("Analyze Document"):
-            if doc_query:
+    if st.button("Execute Gap Analysis", type="primary", use_container_width=True):
+        if st.session_state.resume_text and st.session_state.job_desc_text:
+            with st.status("Analyzing Candidate Profile...", expanded=True) as status:
+                st.write("Parsing resume architecture...")
+                st.write("Detecting AI generation patterns...")
+                st.write("Mapping skills to requirements...")
+
                 prompt = f"""
-                Context from document:
-                {doc_content[:10000]}
+                Act as a ruthless Executive Recruiter and AI Detector. 
                 
-                Question: {doc_query}
+                TASK:
+                1. Compare the Resume against the JD.
+                2. Analyze the Resume for "AI Stench" (patterns that scream ChatGPT-written).
                 
-                Answer based ONLY on the document provided.
+                RESUME: 
+                {st.session_state.resume_text}
+                
+                JD: 
+                {st.session_state.job_desc_text}
+                
+                OUTPUT FORMAT (Markdown):
+                
+                ### 1. 🤖 Authenticity Check (THE MOST IMPORTANT SECTION)
+                * **Human Score:** (0-100% - Be brutal. 100% = Purely Human, 0% = Copy/Pasted from ChatGPT).
+                * **Verdict:** (e.g., "Authentic Professional", "Hybrid", or "Lazy AI Gen").
+                * **Red Flags:** List specific words/phrases that sound robotic (e.g., "delved", "tapestry", "unlocked", "spearheaded", "orchestrated"). If it sounds authentic, praise the specific human details.
+                
+                ### 2. 🎯 Match Score
+                * **Score:** (0-100%)
+                * **Summary:** One brutal sentence on if they get the interview.
+                
+                ### 3. ⚠️ Critical Gaps
+                * (Bullet points of missing skills required by the JD)
+                
+                ### 4. 💡 Strategic Advice
+                * (How to fix the gaps and remove the AI-sounding fluff)
                 """
-                response = llm.invoke(prompt).content
-                st.markdown(response)
 
-# --- MODE 4: CODE GENERATOR ---
-elif mode == "4. Code Generator":
-    st.subheader("💻 Code Architect")
-    code_task = st.text_area("Describe the code you need:", height=150)
-    language = st.selectbox(
-        "Language", ["Python", "JavaScript", "SQL", "HTML/CSS"])
+                result = get_gemini_response(api_key, prompt)
+                status.update(label="Analysis Complete",
+                              state="complete", expanded=False)
+            st.markdown(result)
+        else:
+            st.error("Action Required: Upload Resume and JD in the Sidebar.")
 
-    if st.button("Generate Code"):
-        prompt = f"""
-        Act as a Senior Software Engineer. Write {language} code for:
-        {code_task}
-        
-        Provide:
-        1. The code block.
-        2. Brief explanation of how it works.
-        """
-        response = llm.invoke(prompt).content
-        st.markdown(response)
+# MODULE 2: APP GENERATOR
+elif mode == "App Generator":
+    st.subheader("Application Material Generator")
+    st.caption(
+        "Generate ATS-optimized documentation tailored to the specific opportunity.")
 
-# --- MODE 5: FEEDBACK & RATING ---
-elif mode == "5. Feedback & Rating":
-    st.subheader("⭐ Rate Your Experience")
-    st.markdown(
-        "Help us improve the Enterprise Edition. Your feedback is stored securely.")
+    if st.button("Generate Application Package", type="primary", use_container_width=True):
+        if st.session_state.resume_text and st.session_state.job_desc_text:
+            tab1, tab2 = st.tabs(["Optimized Resume", "Cover Letter"])
+            with st.status("Drafting Documents...", expanded=True) as status:
+
+                # RESUME
+                st.write("Optimizing for ATS keywords...")
+                resume_prompt = f"""
+                Role: Expert Resume Writer. Task: Rewrite resume to align with JD.
+                Constraints: 
+                - Professional tone, NO AI BUZZWORDS (no "delved", "tapestry", "foster").
+                - Use strong, simple verbs (Led, Built, Sold).
+                - Use JD keywords naturally.
+                RESUME: {st.session_state.resume_text} JD: {st.session_state.job_desc_text}
+                """
+                new_resume = get_gemini_response(
+                    api_key, resume_prompt, temp=0.5)
+
+                # COVER LETTER
+                st.write("Drafting executive letter...")
+                cl_prompt = f"""
+                Role: Executive Coach. Task: Write a cover letter connecting user achievements to company pain points.
+                Constraints: Direct, professional, no fluff.
+                RESUME: {st.session_state.resume_text} JD: {st.session_state.job_desc_text}
+                """
+                cover_letter = get_gemini_response(
+                    api_key, cl_prompt, temp=0.5)
+                status.update(label="Generation Complete",
+                              state="complete", expanded=False)
+
+            with tab1:
+                st.markdown(new_resume)
+                st.download_button("Download Resume (.md)",
+                                   new_resume, use_container_width=True)
+            with tab2:
+                st.markdown(cover_letter)
+                st.download_button("Download Letter (.md)",
+                                   cover_letter, use_container_width=True)
+        else:
+            st.error("Action Required: Upload Resume and JD in the Sidebar.")
+
+# MODULE 3: OPS INTELLIGENCE
+elif mode == "Ops Intelligence":
+    st.subheader("Operations Intelligence")
+    st.caption("RAG-enabled search across Standard Operating Procedures (SOPs).")
 
     with st.container(border=True):
-        # Star Rating Input
-        rating = st.slider("How would you rate this app?", 1, 5, 5)
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            manuals = st.file_uploader(
+                "Upload SOP Documents", type="pdf", accept_multiple_files=True, label_visibility="collapsed")
+        with col2:
+            if st.button("Index Docs", use_container_width=True):
+                if manuals:
+                    with st.status("Indexing Vector Database...", expanded=True) as status:
+                        all_docs = []
+                        for f in manuals:
+                            with open(f"temp_{f.name}", "wb") as file:
+                                file.write(f.getbuffer())
+                            all_docs.extend(PyPDFLoader(
+                                f"temp_{f.name}").load())
+                            os.remove(f"temp_{f.name}")
+                        splitter = RecursiveCharacterTextSplitter(
+                            chunk_size=1000, chunk_overlap=100)
+                        chunks = splitter.split_documents(all_docs)
+                        embeddings = GoogleGenerativeAIEmbeddings(
+                            model="models/text-embedding-004", google_api_key=api_key)
+                        st.session_state.ops_db = Chroma.from_documents(
+                            chunks, embeddings)
+                        status.update(label="Indexing Complete",
+                                      state="complete", expanded=False)
+                        st.success(
+                            f"Knowledge Base Active: {len(chunks)} vectors stored.")
 
-        # Feedback Text
-        feedback_text = st.text_area("How can I further improve this app? (Optional):",
-                                     height=100, placeholder="What features should we add next?")
+    st.divider()
+    query = st.text_input("Operational Query",
+                          placeholder="e.g., What is the closing procedure?")
 
-        # Submit Button (Styled matches others)
-        if st.button("Submit Feedback"):
-            save_feedback(rating, feedback_text)
-            st.success("✅ Thank you! Your feedback has been recorded.")
-            time.sleep(1)
-            st.rerun()  # Refresh to update the star rating at the top
+    if st.button("Execute Search", type="primary", use_container_width=True):
+        if st.session_state.ops_db and query:
+            results = st.session_state.ops_db.similarity_search(query, k=3)
+            context = "\n".join([d.page_content for d in results])
+            ans = get_gemini_response(
+                api_key, f"Context: {context} \n Question: {query}")
+            st.markdown(f"### Answer \n {ans}")
+            with st.expander("View Source Context"):
+                for doc in results:
+                    st.caption(doc.page_content[:300] + "...")
 
-    # Admin View (Optional - Remove if you want to keep it hidden)
-    with st.expander("Admin View: Read Feedback"):
-        df = pd.DataFrame(load_feedback())
-        if not df.empty:
-            st.dataframe(df.sort_values(by="timestamp",
-                         ascending=False), use_container_width=True)
-        else:
-            st.info("No feedback yet.")
+# MODULE 4: RESEARCH SYNTH
+elif mode == "Research Synth":
+    st.subheader("Research Synthesizer")
+    st.caption("Multi-document pattern recognition and insight extraction.")
+
+    with st.container(border=True):
+        transcripts = st.file_uploader(
+            "Upload Transcripts/Logs", type="pdf", accept_multiple_files=True)
+
+    if st.button("Synthesize Insights", type="primary", use_container_width=True):
+        if transcripts:
+            with st.status("Analyzing Data Patterns...", expanded=True):
+                text = ""
+                for f in transcripts:
+                    text += extract_text_from_pdf(f)
+                res = get_gemini_response(
+                    api_key, f"Analyze patterns and generate executive summary: {text}")
+            st.markdown(res)

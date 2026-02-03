@@ -1,11 +1,20 @@
+# --- CORE FRAMEWORK ---
 streamlit
+pandas
+numpy
+
+# --- VISUALIZATION (For MTSS Dashboard) ---
+plotly
+matplotlib
+altair
+
+# --- AI & VECTOR DB (For Omni Agent) ---
 langchain-google-genai
 langchain-community
 langchain
 chromadb
 pypdf
 google-generativeai
-pandas
-plotly
-matplotlib
+
+# --- DEPLOYMENT FIXES ---
 pysqlite3-binary
