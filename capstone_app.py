@@ -10,11 +10,6 @@ import streamlit as st
 import os
 import sys
 
-# FIX: ChromaDB requires a newer SQLite than Streamlit Cloud provides
-__import__('pysqlite3')
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-
-# ... rest of your imports ...
 
 # --- 1. CONFIGURATION & STYLE ---
 st.set_page_config(page_title="Omni-Agent Platform",
