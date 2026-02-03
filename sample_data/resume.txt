@@ -1,0 +1,74 @@
+Michael Lam
+1300 Julian St, Mansfield, TX 76063 • mlam00@gmail.com • (208) 863-3310 • https://www.linkedin.com/in/michael-lam-76b0647/
+PRODUCT SUMMARY
+A Senior Product Leader with a decade of expertise in technical product management, specializing in developing
+and scaling full-stack enterprise platforms for regulated sectors. Expertly applies data-informed decision-making
+and cross-functional execution to complex systems, with a strategic focus on authentication/identity systems and
+API backend service integration. Proven record of leading product experiments and system design to achieve
+quantifiable success, including securing $5M in verifiable savings and a 43% conversion lift across critical
+account-based features. Strategic focus on process improvement to drive measurable ROI and platform efficiency.
+PROFESSIONAL EXPERIENCE
+Product Advisor & Coach | (Remote) | (Jul 2022 - Present)
+● Developed and maintained scalable processes and playbooks across engineering, leveraging AI-enabled
+tools (e.g., Notion AI) to improve documentation clarity and accelerate decision-making by 25%.
+● Directed B2B SaaS startups on holistic product strategy and scalable software architecture, focusing on ROI
+and efficiency gains to drive platform adoption to over 10,000 users.
+● Designed the architectural blueprint for a cloud-based Performance Monitoring system, advising clients on
+integrating application health metrics and optimizing Quality of Experience (QoE) data pipelines for
+real-time reporting.
+● Directed the creation of a Data Confidence Model for B2B health clients, establishing enterprise-wide
+standards for data quality and validation across ingestion and end-user reporting.
+Senior Product Manager | Michaels
+Irving, TX | Feb 2022 – July 2022
+● Governed the ETL and data enrichment pipeline, establishing data quality artifacts that secured the
+integrity of the input data, directly contributing to $5M in verifiable savings and a 43% conversion lift.
+● Drove the full-stack tool definition for enterprise APIs, focusing on the underlying J2EE and Linux
+deployment strategy, translating complex Finance business needs into technical requirements for
+Java-based services.
+● Spearheaded the A/B testing and experimentation roadmap for key engagement features, utilizing SQL and
+BI dashboards to analyze user cohorts, resulting in a 43% conversion lift across critical account-based
+touchpoints.
+● Leveraged API expertise to design and implement a streamlined OAuth 2.0 authentication flow, reducing
+sign-in friction by 18% and improving new user engagement within high-security enterprise-facing
+platforms.
+Senior Product Manager | UWorld
+Coppell, TX | Aug 2020 – Feb 2022
+● Refined Agile Scrum workflows, cutting the product development cycle time by 50% and increasing feature
+velocity for the R&D pipeline, acting as the bridge for cross-functional collaboration.
+● Developed and governed the project plan for a high-priority R&D release pipeline, utilizing JIRA and Agile
+methodologies to manage cross-functional dependencies and ensure 99.9% on-time deployment of new
+features.
+Michael Lam
+1300 Julian St, Mansfield, TX 76063 • mlam00@gmail.com • (208) 863-3310 • https://www.linkedin.com/in/michael-lam-76b0647/
+● Applied Statistical Process Control (SPC) principles to monitor and maintain the coherency of large
+normative data sets, ensuring the stability and reliability of critical data outputs post-release.
+● Defined the API versioning and deprecation strategy for a core payment gateway service, ensuring 99.99%
+uptime and enabling seamless integration of new partner services without customer-facing disruption.
+Senior Product Owner |Tyme Digital
+Ho Chi Minh City, Vietnam | Nov 2019 – Aug 2020
+● Oversaw the data model and SQL schema for complex backend payroll API integrations with enterprise
+systems, authoring technical requirements documentation that drove 20% faster integration time across
+three major financial offerings.
+● Architected the integration strategy for a new financial product requiring complex backend payroll API
+integrations, broadening core offerings and resulting in a 15% lift in monthly active users.
+Chief Product Officer | Appable
+Ho Chi Minh City, Vietnam | April 2017 – Jan 2020
+● Championed and drove the implementation of a new cloud-native architecture, serving as the technical
+executive sponsor to deliver robust full-stack solutions in regulated sectors.
+● Executed the ‘zero-to-one’ launch of Vietnam's first online ordering system, owning the customer-facing
+product roadmap and coordinating global engineering and design teams.
+SKILLS & PROFICIENCIES
+● Product Management & Strategy: Product/Process Management, Project Planning, Technical
+Requirements Documentation, QoE Monitoring, Performance Monitoring, Agile (CSPO), Business
+Requirements Structuring, Defining Success Metrics (ROI, Adoption, Efficiency Gains), Scalable
+Processes & Playbooks.
+● Core Technologies & Platforms: JIRA (Epics/Stories), SQL, Oracle Database (Familiarity), J2EE
+(Familiarity), Java (Familiarity), Linux, APIs (Integrations), ETL, Cloud Technologies (Azure),
+Databricks, BI Products (Tableau, Dashboards), SPC.
+● Scripting & Programming (Familiarity): JavaScript, Python, Groovy Scripting, Ruby.
+● Domain & Data Expertise: ERP System/Data, Finance/Accounting, Operations & Distribution,
+Supply Chain, Multi-source Data Integration, Full-Stack Tools.
+EDUCATION & CERTIFICATIONS
+ME, Engineering Management – University of Idaho
+BS, Electrical & Computer Engineering – Boise State University
+Certified Scrum Product Owner (CSPO)
