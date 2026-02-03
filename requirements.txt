@@ -1,11 +1,41 @@
+# --- Streamlit Core ---
 streamlit
 pandas
 numpy
-plotly
-langchain==0.1.0
-langchain-community==0.0.10
-langchain-google-genai
+matplotlib
+seaborn
+
+# --- The "Stable Standard" AI Stack (v0.2) ---
+# We pin these exact versions to guarantee they work together
+langchain==0.2.16
+langchain-community==0.2.16
+langchain-core==0.2.38
+langchain-text-splitters==0.2.4
+langchain-google-genai==1.0.10
 google-generativeai
-chromadb==0.4.24
-pysqlite3-binary
-pydantic==1.10.13
+
+# --- Search & Tools ---
+duckduckgo-search
+
+# --- Your Special Libraries (Unpinned to avoid conflicts) ---
+chromadb
+posthog
+kubernetes
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-grpc
+grpcio
+pypdf
+python-pptx
+python-docx
+openpyxl
+pillow
+aiohttp
+httpx
+requests
+uvicorn
+fastapi
+streamlit
+pandas
+google-generativeai
+reportlab
