@@ -5,3 +5,7 @@ langchain
 chromadb
 pypdf
 google-generativeai
+pandas
+plotly
+matplotlib
+pysqlite3-binary

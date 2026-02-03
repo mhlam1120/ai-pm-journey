@@ -1,13 +1,20 @@
+from google.api_core.exceptions import ResourceExhausted
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import Chroma
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from datetime import datetime
+import time
+import json
 import streamlit as st
 import os
-import json
-import time
-from datetime import datetime
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import Chroma
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from google.api_core.exceptions import ResourceExhausted
+import sys
+
+# FIX: ChromaDB requires a newer SQLite than Streamlit Cloud provides
+__import__('pysqlite3')
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
+# ... rest of your imports ...
 
 # --- 1. CONFIGURATION & STYLE ---
 st.set_page_config(page_title="Omni-Agent Platform",
