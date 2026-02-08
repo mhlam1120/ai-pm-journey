@@ -342,7 +342,7 @@ game_html = """
     const LOGICAL_WIDTH = 800;
     const LOGICAL_HEIGHT = 600;
     const GRAVITY = 0.55;
-    const PLAYER_SPEED = 5;
+    const PLAYER_SPEED = 1.25;
     const JUMP_STRENGTH = -13.5;
     const ENEMY_SPEED_BASE = 1;
 
